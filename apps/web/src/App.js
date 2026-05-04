@@ -325,28 +325,37 @@ export function App() {
         setSettingsSaving(false);
     }
     async function runAiPreview() {
-        if (!session?.access_token || !activeCompanyId)
-            return;
-        setPreviewLoading(true);
-        const response = await fetch("/api/company-ai-preview", {
-            method: "POST",
-            headers: {
-                "content-type": "application/json",
-                Authorization: `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
-                companyId: activeCompanyId,
-                customerMessage: previewInput
-            })
-        });
-        const payload = (await response.json());
-        if (!response.ok) {
-            setPreviewOutput(`Falha no teste: ${payload.detail ?? "erro"}`);
-            setPreviewLoading(false);
+        const companyId = activeCompanyId || activeMembership?.companyId;
+        if (!session?.access_token || !companyId) {
+            setPreviewOutput("Nao foi possivel testar: sessao ou empresa ativa indisponivel.");
             return;
         }
-        setPreviewOutput(payload.response ?? "Sem resposta");
-        setPreviewLoading(false);
+        setPreviewLoading(true);
+        try {
+            const response = await fetch("/api/company-ai-preview", {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json",
+                    Authorization: `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                    companyId,
+                    customerMessage: previewInput
+                })
+            });
+            const payload = (await response.json());
+            if (!response.ok) {
+                setPreviewOutput(`Falha no teste: ${payload.detail ?? payload.error ?? "erro"}`);
+                setPreviewLoading(false);
+                return;
+            }
+            setPreviewOutput(payload.response ?? "Sem resposta");
+            setPreviewLoading(false);
+        }
+        catch (error) {
+            setPreviewOutput(`Falha no teste: ${error instanceof Error ? error.message : "erro de rede"}`);
+            setPreviewLoading(false);
+        }
     }
     if (loading) {
         return _jsx("main", { className: "layout", children: "Carregando sessao..." });
