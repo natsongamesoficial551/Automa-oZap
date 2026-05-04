@@ -41,6 +41,7 @@ export function App() {
   const [previewOutput, setPreviewOutput] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewClicks, setPreviewClicks] = useState(0);
+  const [previewStatus, setPreviewStatus] = useState("");
 
   useEffect(() => {
     if (!supabase) {
@@ -427,6 +428,7 @@ export function App() {
       return;
     }
     setPreviewLoading(true);
+    setPreviewStatus("");
     try {
       const response = await fetch("/api/company-ai-preview", {
         method: "POST",
@@ -440,17 +442,27 @@ export function App() {
         })
       });
 
-      const payload = (await response.json()) as { response?: string; detail?: string; error?: string };
+      const raw = await response.text();
+      let payload: { response?: string; detail?: string; error?: string; [key: string]: unknown } = {};
+      try {
+        payload = JSON.parse(raw) as { response?: string; detail?: string; error?: string; [key: string]: unknown };
+      } catch {
+        payload = { raw };
+      }
+
+      setPreviewStatus(`HTTP ${response.status}`);
+
       if (!response.ok) {
-        setPreviewOutput(`Falha no teste: ${payload.detail ?? payload.error ?? "erro"}`);
+        setPreviewOutput(`Falha no teste: ${payload.detail ?? payload.error ?? JSON.stringify(payload)}`);
         setPreviewLoading(false);
         return;
       }
 
-      setPreviewOutput(payload.response ?? "Sem resposta");
+      setPreviewOutput(payload.response ?? JSON.stringify(payload));
       setPreviewLoading(false);
     } catch (error) {
       setPreviewOutput(`Falha no teste: ${error instanceof Error ? error.message : "erro de rede"}`);
+      setPreviewStatus("Erro de rede");
       setPreviewLoading(false);
     }
   }
@@ -576,6 +588,7 @@ export function App() {
                 {previewLoading ? "Testando..." : "Testar resposta da IA"}
               </button>
               <p className="todo">Cliques no teste: {previewClicks}</p>
+              {previewStatus ? <p className="todo">Status: {previewStatus}</p> : null}
               {previewOutput ? <p className="todo">{previewOutput}</p> : null}
             </div>
           ) : null}
