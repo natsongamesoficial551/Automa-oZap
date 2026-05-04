@@ -20,6 +20,14 @@ function readEnv(name: string): string {
   return value;
 }
 
+function normalizeSupabaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/$/, "");
+  if (trimmed.includes("/rest/v1")) {
+    return trimmed.replace(/\/rest\/v1.*$/, "");
+  }
+  return trimmed;
+}
+
 export const handler: Handler = async (event) => {
   const cid = correlationId();
 
@@ -38,7 +46,14 @@ export const handler: Handler = async (event) => {
       return json(422, { error: "VALIDATION_ERROR", cid, issues: parsed.error.issues });
     }
 
-    const supabaseUrl = readEnv("SUPABASE_URL");
+    const supabaseUrl = normalizeSupabaseUrl(readEnv("SUPABASE_URL"));
+    if (!/^https:\/\/.+\.supabase\.co$/i.test(supabaseUrl)) {
+      return json(500, {
+        error: "ENV_INVALID",
+        cid,
+        detail: "SUPABASE_URL deve ser https://<project-ref>.supabase.co"
+      });
+    }
     const anonKey = readEnv("SUPABASE_ANON_KEY");
     const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
 
