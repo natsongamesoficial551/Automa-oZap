@@ -18,6 +18,32 @@ function env(name: string): string {
   return v;
 }
 
+function extractResponseText(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const data = payload as {
+    output_text?: string;
+    output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+  };
+
+  if (data.output_text && data.output_text.trim().length > 0) {
+    return data.output_text.trim();
+  }
+
+  const chunks = data.output ?? [];
+  for (const chunk of chunks) {
+    for (const part of chunk.content ?? []) {
+      if (part.type === "output_text" && part.text && part.text.trim().length > 0) {
+        return part.text.trim();
+      }
+      if (part.text && part.text.trim().length > 0) {
+        return part.text.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
 export const handler: Handler = async (event) => {
   const cid = correlationId();
   if (event.httpMethod !== "POST") {
@@ -105,8 +131,21 @@ export const handler: Handler = async (event) => {
       return json(400, { error: "OPENAI_PREVIEW_FAILED", cid, detail: txt });
     }
 
-    const out = (await openaiResp.json()) as { output_text?: string };
-    return json(200, { ok: true, cid, mode: "real", response: out.output_text ?? "Sem resposta" });
+    const out = (await openaiResp.json()) as unknown;
+    const text = extractResponseText(out);
+
+    if (!text) {
+      return json(200, {
+        ok: true,
+        cid,
+        mode: "real",
+        response: "Sem resposta",
+        detail: "OPENAI_EMPTY_OUTPUT",
+        raw: out
+      });
+    }
+
+    return json(200, { ok: true, cid, mode: "real", response: text });
   } catch (error) {
     return json(500, { error: "INTERNAL_ERROR", cid, detail: error instanceof Error ? error.message : "unknown" });
   }
