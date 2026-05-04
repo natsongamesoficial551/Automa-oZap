@@ -13,9 +13,9 @@ const bodySchema = z.object({
   tone: z.string().min(2).max(60),
   welcomeEnabled: z.boolean(),
   welcomeMessage: z.string().min(2).max(400),
-  businessName: z.string().min(2).max(120),
-  businessDescription: z.string().min(10).max(2000),
-  businessHours: z.string().min(2).max(200),
+  businessName: z.string().max(120).optional().default(""),
+  businessDescription: z.string().max(2000).optional().default(""),
+  businessHours: z.string().max(200).optional().default(""),
   faq: z.array(z.object({ question: z.string().min(2).max(200), answer: z.string().min(2).max(500) })).max(20)
 });
 
@@ -107,6 +107,10 @@ export const handler: Handler = async (event) => {
     }
 
     const payload = bodyParsed.data;
+    const normalizedBusinessName = payload.businessName.trim();
+    const normalizedBusinessDescription = payload.businessDescription.trim();
+    const normalizedBusinessHours = payload.businessHours.trim();
+
     const settingsJson = {
       ai: {
         assistant_name: payload.assistantName,
@@ -115,9 +119,9 @@ export const handler: Handler = async (event) => {
         welcome_enabled: payload.welcomeEnabled,
         welcome_message: payload.welcomeMessage,
         business: {
-          name: payload.businessName,
-          description: payload.businessDescription,
-          hours: payload.businessHours,
+          name: normalizedBusinessName || "Nao informado",
+          description: normalizedBusinessDescription || "Nao informado",
+          hours: normalizedBusinessHours || "Nao informado",
           faq: payload.faq
         }
       }
