@@ -16,6 +16,8 @@ export function App() {
     const [companyNameInput, setCompanyNameInput] = useState("");
     const [companySlugInput, setCompanySlugInput] = useState("");
     const [onboardingLoading, setOnboardingLoading] = useState(false);
+    const [conversationsLoading, setConversationsLoading] = useState(false);
+    const [conversationItems, setConversationItems] = useState([]);
     useEffect(() => {
         if (!supabase) {
             setLoading(false);
@@ -89,6 +91,58 @@ export function App() {
             setActiveCompanyId(memberships[0].companyId);
         }
     }, [memberships, activeCompanyId]);
+    useEffect(() => {
+        async function loadConversations() {
+            if (!supabase || !activeCompanyId) {
+                setConversationItems([]);
+                return;
+            }
+            setConversationsLoading(true);
+            const { data: conversations, error: convError } = await supabase
+                .from("conversations")
+                .select("id, customer_phone, last_message_at")
+                .eq("company_id", activeCompanyId)
+                .order("last_message_at", { ascending: false })
+                .limit(10);
+            if (convError) {
+                setAuthMessage(`Falha ao carregar conversas: ${convError.message}`);
+                setConversationItems([]);
+                setConversationsLoading(false);
+                return;
+            }
+            const ids = (conversations ?? []).map((item) => item.id);
+            if (ids.length === 0) {
+                setConversationItems([]);
+                setConversationsLoading(false);
+                return;
+            }
+            const { data: messages, error: msgError } = await supabase
+                .from("messages")
+                .select("conversation_id, body, created_at")
+                .in("conversation_id", ids)
+                .order("created_at", { ascending: false });
+            if (msgError) {
+                setAuthMessage(`Falha ao carregar mensagens: ${msgError.message}`);
+                setConversationItems([]);
+                setConversationsLoading(false);
+                return;
+            }
+            const latestByConversation = new Map();
+            for (const message of messages ?? []) {
+                if (!latestByConversation.has(message.conversation_id)) {
+                    latestByConversation.set(message.conversation_id, message.body);
+                }
+            }
+            setConversationItems((conversations ?? []).map((conv) => ({
+                id: conv.id,
+                phone: conv.customer_phone,
+                lastMessageAt: conv.last_message_at,
+                lastText: latestByConversation.get(conv.id) ?? "Sem mensagens"
+            })));
+            setConversationsLoading(false);
+        }
+        loadConversations();
+    }, [activeCompanyId]);
     async function createFirstCompany() {
         if (!supabase || !session?.access_token) {
             setAuthMessage("Sessao invalida para onboarding.");
@@ -150,5 +204,7 @@ export function App() {
     if (!session) {
         return (_jsxs("main", { className: "layout", children: [_jsxs("section", { className: "hero", children: [_jsx("p", { className: "kicker", children: "AutomacaoZap" }), _jsx("h1", { children: "Acesso ao painel" }), _jsx("p", { className: "description", children: "Entre para gerenciar empresas, integracoes e atendimento com IA." })] }), _jsxs("section", { className: "card auth-card", children: [_jsx("h2", { children: "Entrar com Google" }), !isSupabaseConfigured && (_jsx("p", { className: "todo", children: "Modo fallback: configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env`." })), _jsx("p", { className: "todo", children: "A autenticacao por email/senha foi desativada. Use sua conta Google." }), _jsx("button", { className: "google-btn", onClick: loginWithGoogle, children: "Continuar com Google" }), authMessage ? _jsx("p", { className: "todo", children: authMessage }) : null] })] }));
     }
-    return (_jsxs("main", { className: "layout", children: [_jsxs("section", { className: "hero", children: [_jsx("p", { className: "kicker", children: "AutomacaoZap" }), _jsx("h1", { children: "SaaS de atendimento com IA no WhatsApp" }), _jsx("p", { className: "description", children: "Base inicial pronta para evoluir em blocos: multiempresa, integra\u00E7\u00F5es com fallback e deploy em Netlify." }), _jsxs("p", { className: "description", children: ["Sessao: ", _jsx("strong", { children: session.user.email })] }), _jsx("button", { className: "link-btn", onClick: logout, children: "Sair" })] }), _jsxs("section", { className: "card", children: [_jsx("h2", { children: "Empresa ativa" }), membershipsLoading ? _jsx("p", { className: "todo", children: "Carregando memberships..." }) : null, !membershipsLoading && memberships.length > 0 && activeMembership ? (_jsxs(_Fragment, { children: [memberships.length > 1 ? (_jsx("select", { className: "company-select", value: activeMembership.companyId, onChange: (e) => setActiveCompanyId(e.target.value), children: memberships.map((item) => (_jsx("option", { value: item.companyId, children: item.companyName }, item.companyId))) })) : null, _jsx("p", { className: "status", children: activeMembership.companyName }), _jsxs("p", { className: "todo", children: ["Role: ", activeMembership.role] })] })) : null, !membershipsLoading && memberships.length === 0 ? (_jsxs(_Fragment, { children: [_jsx("p", { className: "status", children: "Nenhuma empresa vinculada" }), _jsx("p", { className: "todo", children: "Vamos criar sua primeira empresa agora para concluir onboarding." }), _jsxs("div", { className: "onboarding-form", children: [_jsx("input", { type: "text", placeholder: "Nome da empresa", value: companyNameInput, onChange: (e) => setCompanyNameInput(e.target.value) }), _jsx("input", { type: "text", placeholder: "slug-da-empresa", value: companySlugInput, onChange: (e) => setCompanySlugInput(e.target.value) }), _jsx("button", { className: "google-btn", onClick: createFirstCompany, disabled: onboardingLoading, children: onboardingLoading ? "Criando..." : "Criar empresa" })] })] })) : null] }), _jsx("section", { className: "grid", children: cards.map((card) => (_jsxs("article", { className: "card", children: [_jsx("h2", { children: card.title }), _jsx("p", { className: "status", children: statusLabel(card.mode) }), _jsx("p", { className: "todo", children: card.todo })] }, card.title))) })] }));
+    return (_jsxs("main", { className: "layout", children: [_jsxs("section", { className: "hero", children: [_jsx("p", { className: "kicker", children: "AutomacaoZap" }), _jsx("h1", { children: "SaaS de atendimento com IA no WhatsApp" }), _jsx("p", { className: "description", children: "Base inicial pronta para evoluir em blocos: multiempresa, integra\u00E7\u00F5es com fallback e deploy em Netlify." }), _jsxs("p", { className: "description", children: ["Sessao: ", _jsx("strong", { children: session.user.email })] }), _jsx("button", { className: "link-btn", onClick: logout, children: "Sair" })] }), _jsxs("section", { className: "card", children: [_jsx("h2", { children: "Empresa ativa" }), membershipsLoading ? _jsx("p", { className: "todo", children: "Carregando memberships..." }) : null, !membershipsLoading && memberships.length > 0 && activeMembership ? (_jsxs(_Fragment, { children: [memberships.length > 1 ? (_jsx("select", { className: "company-select", value: activeMembership.companyId, onChange: (e) => setActiveCompanyId(e.target.value), children: memberships.map((item) => (_jsx("option", { value: item.companyId, children: item.companyName }, item.companyId))) })) : null, _jsx("p", { className: "status", children: activeMembership.companyName }), _jsxs("p", { className: "todo", children: ["Role: ", activeMembership.role] })] })) : null, !membershipsLoading && memberships.length === 0 ? (_jsxs(_Fragment, { children: [_jsx("p", { className: "status", children: "Nenhuma empresa vinculada" }), _jsx("p", { className: "todo", children: "Vamos criar sua primeira empresa agora para concluir onboarding." }), _jsxs("div", { className: "onboarding-form", children: [_jsx("input", { type: "text", placeholder: "Nome da empresa", value: companyNameInput, onChange: (e) => setCompanyNameInput(e.target.value) }), _jsx("input", { type: "text", placeholder: "slug-da-empresa", value: companySlugInput, onChange: (e) => setCompanySlugInput(e.target.value) }), _jsx("button", { className: "google-btn", onClick: createFirstCompany, disabled: onboardingLoading, children: onboardingLoading ? "Criando..." : "Criar empresa" })] })] })) : null] }), _jsx("section", { className: "grid", children: cards.map((card) => (_jsxs("article", { className: "card", children: [_jsx("h2", { children: card.title }), _jsx("p", { className: "status", children: statusLabel(card.mode) }), _jsx("p", { className: "todo", children: card.todo })] }, card.title))) }), _jsxs("section", { className: "card conversations-card", children: [_jsx("h2", { children: "Conversas recentes" }), conversationsLoading ? _jsx("p", { className: "todo", children: "Carregando conversas..." }) : null, !conversationsLoading && conversationItems.length === 0 ? _jsx("p", { className: "todo", children: "Ainda sem conversas para esta empresa." }) : null, !conversationsLoading && conversationItems.length > 0
+                        ? conversationItems.map((item) => (_jsxs("article", { className: "conversation-item", children: [_jsx("p", { className: "status", children: item.phone }), _jsx("p", { className: "todo", children: item.lastText }), _jsx("p", { className: "todo", children: item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleString("pt-BR") : "Sem data" })] }, item.id)))
+                        : null] })] }));
 }

@@ -20,6 +20,8 @@ export function App() {
   const [companyNameInput, setCompanyNameInput] = useState("");
   const [companySlugInput, setCompanySlugInput] = useState("");
   const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [conversationItems, setConversationItems] = useState<Array<{ id: string; phone: string; lastMessageAt: string | null; lastText: string }>>([]);
 
   useEffect(() => {
     if (!supabase) {
@@ -113,6 +115,70 @@ export function App() {
       setActiveCompanyId(memberships[0].companyId);
     }
   }, [memberships, activeCompanyId]);
+
+  useEffect(() => {
+    async function loadConversations() {
+      if (!supabase || !activeCompanyId) {
+        setConversationItems([]);
+        return;
+      }
+
+      setConversationsLoading(true);
+
+      const { data: conversations, error: convError } = await supabase
+        .from("conversations")
+        .select("id, customer_phone, last_message_at")
+        .eq("company_id", activeCompanyId)
+        .order("last_message_at", { ascending: false })
+        .limit(10);
+
+      if (convError) {
+        setAuthMessage(`Falha ao carregar conversas: ${convError.message}`);
+        setConversationItems([]);
+        setConversationsLoading(false);
+        return;
+      }
+
+      const ids = (conversations ?? []).map((item) => item.id);
+      if (ids.length === 0) {
+        setConversationItems([]);
+        setConversationsLoading(false);
+        return;
+      }
+
+      const { data: messages, error: msgError } = await supabase
+        .from("messages")
+        .select("conversation_id, body, created_at")
+        .in("conversation_id", ids)
+        .order("created_at", { ascending: false });
+
+      if (msgError) {
+        setAuthMessage(`Falha ao carregar mensagens: ${msgError.message}`);
+        setConversationItems([]);
+        setConversationsLoading(false);
+        return;
+      }
+
+      const latestByConversation = new Map<string, string>();
+      for (const message of messages ?? []) {
+        if (!latestByConversation.has(message.conversation_id)) {
+          latestByConversation.set(message.conversation_id, message.body);
+        }
+      }
+
+      setConversationItems(
+        (conversations ?? []).map((conv) => ({
+          id: conv.id,
+          phone: conv.customer_phone,
+          lastMessageAt: conv.last_message_at,
+          lastText: latestByConversation.get(conv.id) ?? "Sem mensagens"
+        }))
+      );
+      setConversationsLoading(false);
+    }
+
+    loadConversations();
+  }, [activeCompanyId]);
 
   async function createFirstCompany() {
     if (!supabase || !session?.access_token) {
@@ -275,6 +341,21 @@ export function App() {
             <p className="todo">{card.todo}</p>
           </article>
         ))}
+      </section>
+
+      <section className="card conversations-card">
+        <h2>Conversas recentes</h2>
+        {conversationsLoading ? <p className="todo">Carregando conversas...</p> : null}
+        {!conversationsLoading && conversationItems.length === 0 ? <p className="todo">Ainda sem conversas para esta empresa.</p> : null}
+        {!conversationsLoading && conversationItems.length > 0
+          ? conversationItems.map((item) => (
+              <article className="conversation-item" key={item.id}>
+                <p className="status">{item.phone}</p>
+                <p className="todo">{item.lastText}</p>
+                <p className="todo">{item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleString("pt-BR") : "Sem data"}</p>
+              </article>
+            ))
+          : null}
       </section>
     </main>
   );

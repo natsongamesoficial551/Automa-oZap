@@ -92,6 +92,7 @@ create table if not exists public.audit_logs (
 );
 
 create index if not exists idx_company_members_user on public.company_members(user_id);
+create unique index if not exists uq_conversations_company_phone on public.conversations(company_id, customer_phone);
 create index if not exists idx_conversations_company on public.conversations(company_id, last_message_at desc);
 create index if not exists idx_messages_company_conv on public.messages(company_id, conversation_id, created_at desc);
 create index if not exists idx_audit_logs_company on public.audit_logs(company_id, created_at desc);

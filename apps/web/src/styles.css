@@ -145,3 +145,15 @@ body {
   padding: 10px 12px;
   font: inherit;
 }
+
+.conversations-card {
+  margin-top: 18px;
+}
+
+.conversation-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  background: #fff;
+}
