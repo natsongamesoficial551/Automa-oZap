@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { CompanyMembership } from "./types";
@@ -13,9 +13,6 @@ function statusLabel(mode: StatusMode): string {
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [authMessage, setAuthMessage] = useState<string | null>(null);
 
   const memberships: CompanyMembership[] = useMemo(
@@ -70,8 +67,7 @@ export function App() {
     []
   );
 
-  async function onSubmitAuth(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function loginWithGoogle() {
     setAuthMessage(null);
 
     if (!supabase) {
@@ -79,24 +75,16 @@ export function App() {
       return;
     }
 
-    if (authMode === "signin") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setAuthMessage(error.message);
-        return;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin
       }
+    });
 
-      setAuthMessage("Login realizado com sucesso.");
-      return;
-    }
-
-    const { error } = await supabase.auth.signUp({ email, password });
     if (error) {
       setAuthMessage(error.message);
-      return;
     }
-
-    setAuthMessage("Cadastro enviado. Verifique seu email para confirmar a conta.");
   }
 
   async function logout() {
@@ -118,18 +106,12 @@ export function App() {
         </section>
 
         <section className="card auth-card">
-          <h2>{authMode === "signin" ? "Entrar" : "Criar conta"}</h2>
+          <h2>Entrar com Google</h2>
           {!isSupabaseConfigured && (
             <p className="todo">Modo fallback: configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env`.</p>
           )}
-          <form className="auth-form" onSubmit={onSubmitAuth}>
-            <input type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <input type="password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            <button type="submit">{authMode === "signin" ? "Entrar" : "Cadastrar"}</button>
-          </form>
-          <button className="link-btn" onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}>
-            {authMode === "signin" ? "Nao tem conta? Criar agora" : "Ja tem conta? Entrar"}
-          </button>
+          <p className="todo">A autenticacao por email/senha foi desativada. Use sua conta Google.</p>
+          <button className="google-btn" onClick={loginWithGoogle}>Continuar com Google</button>
           {authMessage ? <p className="todo">{authMessage}</p> : null}
         </section>
       </main>

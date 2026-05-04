@@ -28,6 +28,11 @@ VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 ```
 
+Auth atual: login via Google (Supabase OAuth).
+No Supabase, habilite Google provider e adicione Redirect URLs:
+- `http://localhost:5173`
+- `https://SEU-SITE.netlify.app`
+
 ## Endpoints iniciais
 
 - `GET /.netlify/functions/health`
@@ -54,3 +59,19 @@ Payload mock POST:
 - TODO[WPP-ACCESS-01]: configurar Meta Cloud API por tenant.
 - TODO[DB-SETUP-01]: provisionar Supabase/Postgres e criar migrations.
 - TODO[NETLIFY-SETUP-01]: criar site no Netlify e preencher env vars.
+
+## Setup do banco no Supabase
+
+1. Abra Supabase > SQL Editor.
+2. Copie e rode `packages/db/migrations/0001_init.sql`.
+3. Crie seu usuario via Auth (signup pelo app ou dashboard).
+4. Rode o seed minimo abaixo trocando os valores:
+
+```sql
+insert into public.companies (name, slug)
+values ('Minha Empresa', 'minha-empresa')
+returning id;
+
+insert into public.company_members (company_id, user_id, role)
+values ('COMPANY_ID_AQUI', 'USER_ID_DO_AUTH_USERS', 'owner');
+```

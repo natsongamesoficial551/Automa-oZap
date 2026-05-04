@@ -111,3 +111,14 @@ body {
   background: transparent;
   color: var(--accent);
 }
+
+.google-btn {
+  border: 1px solid #d4d9dd;
+  background: #ffffff;
+  color: #1d2428;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: inherit;
+  cursor: pointer;
+  margin-top: 8px;
+}
