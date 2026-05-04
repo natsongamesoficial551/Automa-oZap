@@ -1,0 +1,22 @@
+{
+  "name": "automacaozap-saas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:functions": "npx netlify-cli@latest dev",
+    "build": "npm run build --workspace apps/web",
+    "typecheck": "npm run typecheck --workspace apps/web",
+    "lint": "npm run lint --workspace apps/web"
+  },
+  "dependencies": {
+    "@netlify/functions": "^3.1.8",
+    "pino": "^9.6.0",
+    "zod": "^3.24.1"
+  }
+}

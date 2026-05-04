@@ -1,0 +1,113 @@
+:root {
+  --bg-0: #f4f1ea;
+  --bg-1: #d9e7df;
+  --ink: #1d2428;
+  --muted: #52636b;
+  --card: #fffcf7;
+  --line: #d5ddd3;
+  --accent: #1f7a63;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at 20% 20%, var(--bg-1) 0%, var(--bg-0) 42%, #f7f4ef 100%);
+  min-height: 100vh;
+}
+
+.layout {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px 20px 52px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  line-height: 1.15;
+}
+
+.kicker {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.description {
+  max-width: 72ch;
+  color: var(--muted);
+}
+
+.grid {
+  margin-top: 28px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 26px rgba(33, 57, 52, 0.08);
+}
+
+.card h2 {
+  margin: 0;
+}
+
+.status {
+  margin: 8px 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.todo {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.auth-card {
+  margin-top: 24px;
+  max-width: 460px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.auth-form input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.auth-form button,
+.link-btn {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-btn {
+  margin-top: 10px;
+  background: transparent;
+  color: var(--accent);
+}
