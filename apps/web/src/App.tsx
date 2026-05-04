@@ -41,6 +41,7 @@ export function App() {
   const [previewInput, setPreviewInput] = useState("Quero saber horarios e formas de pagamento.");
   const [previewOutput, setPreviewOutput] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewClicks, setPreviewClicks] = useState(0);
 
   useEffect(() => {
     if (!supabase) {
@@ -420,6 +421,9 @@ export function App() {
   }
 
   async function runAiPreview() {
+    setPreviewClicks((value) => value + 1);
+    setPreviewOutput("Clique detectado. Iniciando teste...");
+
     const companyId = activeCompanyId || activeMembership?.companyId;
     if (!session?.access_token || !companyId) {
       setPreviewOutput("Nao foi possivel testar: sessao ou empresa ativa indisponivel.");
@@ -575,6 +579,7 @@ export function App() {
               <button className="google-btn" onClick={runAiPreview} disabled={previewLoading}>
                 {previewLoading ? "Testando..." : "Testar resposta da IA"}
               </button>
+              <p className="todo">Cliques no teste: {previewClicks}</p>
               {previewOutput ? <p className="todo">{previewOutput}</p> : null}
             </div>
           ) : null}
