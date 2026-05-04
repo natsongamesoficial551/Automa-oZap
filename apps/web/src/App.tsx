@@ -4,6 +4,7 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { CompanyMembership } from "./types";
 
 type StatusMode = "mock" | "pending";
+type PanelPage = "dashboard" | "ai" | "company";
 
 function statusLabel(mode: StatusMode): string {
   if (mode === "mock") return "Mock ativo";
@@ -22,6 +23,24 @@ export function App() {
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [conversationItems, setConversationItems] = useState<Array<{ id: string; phone: string; lastMessageAt: string | null; lastText: string }>>([]);
+  const [activeConversationId, setActiveConversationId] = useState("");
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messageTimeline, setMessageTimeline] = useState<Array<{ id: string; direction: string; body: string; status: string; createdAt: string }>>([]);
+  const [page, setPage] = useState<PanelPage>("dashboard");
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [assistantName, setAssistantName] = useState("Atendente IA");
+  const [modelName, setModelName] = useState("gpt-4.1-mini");
+  const [tone, setTone] = useState("profissional e simpatico");
+  const [welcomeEnabled, setWelcomeEnabled] = useState(true);
+  const [welcomeMessage, setWelcomeMessage] = useState("Oi! Sou o assistente virtual da empresa. Como posso ajudar?");
+  const [businessName, setBusinessName] = useState("");
+  const [businessDescription, setBusinessDescription] = useState("");
+  const [businessHours, setBusinessHours] = useState("Seg-Sex 08h-18h");
+  const [faqText, setFaqText] = useState("Formate como: pergunta|resposta");
+  const [previewInput, setPreviewInput] = useState("Quero saber horarios e formas de pagamento.");
+  const [previewOutput, setPreviewOutput] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -174,11 +193,112 @@ export function App() {
           lastText: latestByConversation.get(conv.id) ?? "Sem mensagens"
         }))
       );
+      if (conversations.length > 0 && !activeConversationId) {
+        setActiveConversationId(conversations[0].id);
+      }
       setConversationsLoading(false);
     }
 
     loadConversations();
   }, [activeCompanyId]);
+
+  useEffect(() => {
+    async function loadMessages() {
+      if (!supabase || !activeConversationId) {
+        setMessageTimeline([]);
+        return;
+      }
+
+      setMessagesLoading(true);
+      const { data, error } = await supabase
+        .from("messages")
+        .select("id, direction, body, status, created_at")
+        .eq("conversation_id", activeConversationId)
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      if (error) {
+        setAuthMessage(`Falha ao carregar timeline: ${error.message}`);
+        setMessageTimeline([]);
+        setMessagesLoading(false);
+        return;
+      }
+
+      setMessageTimeline(
+        (data ?? []).map((item) => ({
+          id: item.id,
+          direction: item.direction,
+          body: item.body,
+          status: item.status,
+          createdAt: item.created_at
+        }))
+      );
+      setMessagesLoading(false);
+    }
+
+    loadMessages();
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    async function loadCompanySettings() {
+      if (!session?.access_token || !activeCompanyId) return;
+
+      setSettingsLoading(true);
+      const response = await fetch(`/api/company-ai-settings?company_id=${activeCompanyId}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+
+      const payload = (await response.json()) as {
+        company?: {
+          name?: string;
+          settings_json?: {
+            ai?: {
+              assistant_name?: string;
+              model?: string;
+              tone?: string;
+              welcome_enabled?: boolean;
+              welcome_message?: string;
+              business?: {
+                name?: string;
+                description?: string;
+                hours?: string;
+                faq?: Array<{ question?: string; answer?: string }>;
+              };
+            };
+          };
+        };
+        detail?: string;
+      };
+
+      if (!response.ok) {
+        setAuthMessage(`Falha ao carregar configuracoes da IA: ${payload.detail ?? "erro"}`);
+        setSettingsLoading(false);
+        return;
+      }
+
+      const ai = payload.company?.settings_json?.ai;
+      const business = ai?.business;
+
+      setAssistantName(ai?.assistant_name ?? "Atendente IA");
+      setModelName(ai?.model ?? "gpt-4.1-mini");
+      setTone(ai?.tone ?? "profissional e simpatico");
+      setWelcomeEnabled(ai?.welcome_enabled ?? true);
+      setWelcomeMessage(ai?.welcome_message ?? "Oi! Sou o assistente virtual da empresa. Como posso ajudar?");
+      setBusinessName(business?.name ?? payload.company?.name ?? "");
+      setBusinessDescription(business?.description ?? "");
+      setBusinessHours(business?.hours ?? "Seg-Sex 08h-18h");
+      setFaqText(
+        (business?.faq ?? [])
+          .map((item) => `${item.question ?? ""}|${item.answer ?? ""}`)
+          .filter((line) => line !== "|")
+          .join("\n") || "Formate como: pergunta|resposta"
+      );
+
+      setSettingsLoading(false);
+    }
+
+    loadCompanySettings();
+  }, [activeCompanyId, session?.access_token]);
 
   async function createFirstCompany() {
     if (!supabase || !session?.access_token) {
@@ -250,6 +370,81 @@ export function App() {
     await supabase.auth.signOut();
   }
 
+  async function saveAiSettings() {
+    if (!session?.access_token || !activeCompanyId) {
+      setAuthMessage("Sessao/empresa invalida para salvar configuracoes.");
+      return;
+    }
+
+    const faq = faqText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && line.includes("|"))
+      .map((line) => {
+        const [question, ...rest] = line.split("|");
+        return { question: question.trim(), answer: rest.join("|").trim() };
+      })
+      .filter((item) => item.question.length > 1 && item.answer.length > 1);
+
+    setSettingsSaving(true);
+    setAuthMessage(null);
+
+    const response = await fetch(`/api/company-ai-settings?company_id=${activeCompanyId}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        assistantName,
+        model: modelName,
+        tone,
+        welcomeEnabled,
+        welcomeMessage,
+        businessName,
+        businessDescription,
+        businessHours,
+        faq
+      })
+    });
+
+    const payload = (await response.json()) as { detail?: string };
+    if (!response.ok) {
+      setAuthMessage(`Falha ao salvar configuracoes: ${payload.detail ?? "erro"}`);
+      setSettingsSaving(false);
+      return;
+    }
+
+    setAuthMessage("Configuracoes de IA salvas com sucesso.");
+    setSettingsSaving(false);
+  }
+
+  async function runAiPreview() {
+    if (!session?.access_token || !activeCompanyId) return;
+    setPreviewLoading(true);
+    const response = await fetch("/api/company-ai-preview", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        companyId: activeCompanyId,
+        customerMessage: previewInput
+      })
+    });
+
+    const payload = (await response.json()) as { response?: string; detail?: string };
+    if (!response.ok) {
+      setPreviewOutput(`Falha no teste: ${payload.detail ?? "erro"}`);
+      setPreviewLoading(false);
+      return;
+    }
+
+    setPreviewOutput(payload.response ?? "Sem resposta");
+    setPreviewLoading(false);
+  }
+
   if (loading) {
     return <main className="layout">Carregando sessao...</main>;
   }
@@ -288,6 +483,11 @@ export function App() {
           Sessao: <strong>{session.user.email}</strong>
         </p>
         <button className="link-btn" onClick={logout}>Sair</button>
+        <div className="tabs">
+          <button className={`tab-btn ${page === "dashboard" ? "active" : ""}`} onClick={() => setPage("dashboard")}>Dashboard</button>
+          <button className={`tab-btn ${page === "ai" ? "active" : ""}`} onClick={() => setPage("ai")}>IA WhatsApp</button>
+          <button className={`tab-btn ${page === "company" ? "active" : ""}`} onClick={() => setPage("company")}>Dados empresa</button>
+        </div>
       </section>
 
       <section className="card">
@@ -333,7 +533,7 @@ export function App() {
         ) : null}
       </section>
 
-      <section className="grid">
+      {page === "dashboard" ? <section className="grid">
         {cards.map((card) => (
           <article className="card" key={card.title}>
             <h2>{card.title}</h2>
@@ -341,21 +541,98 @@ export function App() {
             <p className="todo">{card.todo}</p>
           </article>
         ))}
-      </section>
+      </section> : null}
+
+      {page === "ai" ? (
+        <section className="card settings-card">
+          <h2>Configuração da IA no WhatsApp</h2>
+          {settingsLoading ? <p className="todo">Carregando configurações...</p> : null}
+          {!settingsLoading ? (
+            <div className="settings-grid">
+              <input value={assistantName} onChange={(e) => setAssistantName(e.target.value)} placeholder="Nome do assistente" />
+              <input value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="Modelo (ex: gpt-4.1-mini)" />
+              <input value={tone} onChange={(e) => setTone(e.target.value)} placeholder="Tom de voz" />
+              <label className="toggle-row">
+                <input type="checkbox" checked={welcomeEnabled} onChange={(e) => setWelcomeEnabled(e.target.checked)} />
+                Mensagem automática inicial
+              </label>
+              <textarea value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)} rows={3} placeholder="Mensagem inicial" />
+              <button className="google-btn" onClick={saveAiSettings} disabled={settingsSaving}>
+                {settingsSaving ? "Salvando..." : "Salvar configuração da IA"}
+              </button>
+              <hr />
+              <h3>Teste rápido da resposta</h3>
+              <textarea value={previewInput} onChange={(e) => setPreviewInput(e.target.value)} rows={3} placeholder="Digite mensagem de cliente" />
+              <button className="google-btn" onClick={runAiPreview} disabled={previewLoading}>
+                {previewLoading ? "Testando..." : "Testar resposta da IA"}
+              </button>
+              {previewOutput ? <p className="todo">{previewOutput}</p> : null}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {page === "company" ? (
+        <section className="card settings-card">
+          <h2>Dados da empresa para contexto da IA</h2>
+          <div className="settings-grid">
+            <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Nome da empresa" />
+            <input value={businessHours} onChange={(e) => setBusinessHours(e.target.value)} placeholder="Horário de atendimento" />
+            <textarea
+              value={businessDescription}
+              onChange={(e) => setBusinessDescription(e.target.value)}
+              rows={5}
+              placeholder="Descreva serviços, público e regras de atendimento"
+            />
+            <textarea
+              value={faqText}
+              onChange={(e) => setFaqText(e.target.value)}
+              rows={6}
+              placeholder="Uma FAQ por linha: pergunta|resposta"
+            />
+            <button className="google-btn" onClick={saveAiSettings} disabled={settingsSaving}>
+              {settingsSaving ? "Salvando..." : "Salvar dados da empresa"}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card conversations-card">
         <h2>Conversas recentes</h2>
         {conversationsLoading ? <p className="todo">Carregando conversas...</p> : null}
         {!conversationsLoading && conversationItems.length === 0 ? <p className="todo">Ainda sem conversas para esta empresa.</p> : null}
-        {!conversationsLoading && conversationItems.length > 0
-          ? conversationItems.map((item) => (
-              <article className="conversation-item" key={item.id}>
-                <p className="status">{item.phone}</p>
-                <p className="todo">{item.lastText}</p>
-                <p className="todo">{item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleString("pt-BR") : "Sem data"}</p>
-              </article>
-            ))
-          : null}
+        {!conversationsLoading && conversationItems.length > 0 ? (
+          <div className="conversations-layout">
+            <div>
+              {conversationItems.map((item) => (
+                <button
+                  type="button"
+                  className={`conversation-item ${activeConversationId === item.id ? "active" : ""}`}
+                  onClick={() => setActiveConversationId(item.id)}
+                  key={item.id}
+                >
+                  <p className="status">{item.phone}</p>
+                  <p className="todo">{item.lastText}</p>
+                  <p className="todo">{item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleString("pt-BR") : "Sem data"}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="timeline-panel">
+              <h3>Timeline da conversa</h3>
+              {messagesLoading ? <p className="todo">Carregando mensagens...</p> : null}
+              {!messagesLoading && messageTimeline.length === 0 ? <p className="todo">Sem mensagens na conversa selecionada.</p> : null}
+              {!messagesLoading
+                ? messageTimeline.map((msg) => (
+                    <article className={`message-bubble ${msg.direction === "outbound" ? "out" : "in"}`} key={msg.id}>
+                      <p className="todo">{msg.body}</p>
+                      <p className="todo">{msg.status} • {new Date(msg.createdAt).toLocaleString("pt-BR")}</p>
+                    </article>
+                  ))
+                : null}
+            </div>
+          </div>
+        ) : null}
       </section>
     </main>
   );

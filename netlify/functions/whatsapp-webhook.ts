@@ -107,6 +107,36 @@ async function generateReply(input: {
   model: string;
   admin: ReturnType<typeof createClient>;
 }): Promise<{ text: string; mode: "mock" | "real"; tokenIn: number | null; tokenOut: number | null }> {
+  const { data: companyData } = await input.admin
+    .from("companies")
+    .select("settings_json")
+    .eq("id", input.companyId)
+    .maybeSingle();
+
+  const aiSettings = (companyData?.settings_json as {
+    ai?: {
+      assistant_name?: string;
+      tone?: string;
+      business?: { name?: string; description?: string; hours?: string; faq?: Array<{ question?: string; answer?: string }> };
+    };
+  } | null)?.ai;
+
+  const faqLines = (aiSettings?.business?.faq ?? [])
+    .map((item) => `- ${item.question ?? ""}: ${item.answer ?? ""}`)
+    .join("\n");
+
+  const systemPrompt = [
+    `Voce e ${aiSettings?.assistant_name ?? "um assistente virtual"} de atendimento no WhatsApp.`,
+    `Tom: ${aiSettings?.tone ?? "profissional e simpatico"}.`,
+    `Empresa: ${aiSettings?.business?.name ?? "Nao informado"}.`,
+    `Descricao: ${aiSettings?.business?.description ?? "Nao informada"}.`,
+    `Horario: ${aiSettings?.business?.hours ?? "Nao informado"}.`,
+    faqLines ? `FAQ:\n${faqLines}` : "",
+    "Responda de forma curta, clara e util para o cliente."
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   if (isMockEnabled("USE_MOCK_OPENAI")) {
     const mock = new MockOpenAIProvider();
     const result = await mock.generateReply({
@@ -141,7 +171,7 @@ async function generateReply(input: {
       input: [
         {
           role: "system",
-          content: "Voce e um assistente de atendimento no WhatsApp. Seja objetivo e educado."
+          content: systemPrompt
         },
         {
           role: "user",
