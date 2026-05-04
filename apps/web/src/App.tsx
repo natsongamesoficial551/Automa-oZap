@@ -458,7 +458,15 @@ export function App() {
         return;
       }
 
-      setPreviewOutput(payload.response ?? JSON.stringify(payload));
+      if (payload.response === "Sem resposta") {
+        setPreviewOutput(
+          `Sem resposta da OpenAI. ${
+            payload.detail ? `Detalhe: ${String(payload.detail)}.` : ""
+          } ${payload.raw ? `Raw: ${JSON.stringify(payload.raw).slice(0, 800)}` : ""}`.trim()
+        );
+      } else {
+        setPreviewOutput(payload.response ?? JSON.stringify(payload));
+      }
       setPreviewLoading(false);
     } catch (error) {
       setPreviewOutput(`Falha no teste: ${error instanceof Error ? error.message : "erro de rede"}`);

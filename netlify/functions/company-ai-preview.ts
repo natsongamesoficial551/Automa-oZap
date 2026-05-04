@@ -41,7 +41,36 @@ function extractResponseText(payload: unknown): string | null {
     }
   }
 
-  return null;
+  function deepFindText(node: unknown): string | null {
+    if (!node) return null;
+    if (typeof node === "string") {
+      const trimmed = node.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = deepFindText(item);
+        if (found) return found;
+      }
+      return null;
+    }
+    if (typeof node === "object") {
+      const record = node as Record<string, unknown>;
+      if (typeof record.text === "string" && record.text.trim().length > 0) {
+        return record.text.trim();
+      }
+      if (typeof record.output_text === "string" && record.output_text.trim().length > 0) {
+        return record.output_text.trim();
+      }
+      for (const value of Object.values(record)) {
+        const found = deepFindText(value);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  return deepFindText((payload as { output?: unknown }).output);
 }
 
 export const handler: Handler = async (event) => {
@@ -93,12 +122,31 @@ export const handler: Handler = async (event) => {
       .eq("id", parsed.data.companyId)
       .single();
 
-    const ai = (company?.settings_json as { ai?: { assistant_name?: string; tone?: string; business?: { description?: string; hours?: string } } } | null)?.ai;
+    const ai = (company?.settings_json as {
+      ai?: {
+        assistant_name?: string;
+        tone?: string;
+        objective?: string;
+        forbidden_topics?: string;
+        escalation_rules?: string;
+        business?: { description?: string; hours?: string };
+        playbook?: Array<{ intent?: string; baseReply?: string }>;
+      };
+    } | null)?.ai;
+    const playbookLines = (ai?.playbook ?? [])
+      .slice(0, 8)
+      .map((item) => `- Intencao: ${item.intent ?? ""} | Resposta base: ${item.baseReply ?? ""}`)
+      .join("\n");
+
     const prompt = [
       `Voce e ${ai?.assistant_name ?? "um assistente"} da empresa ${company?.name ?? "empresa"}.`,
+      `Objetivo: ${ai?.objective ?? "nao informado"}.`,
       `Tom: ${ai?.tone ?? "profissional"}.`,
       `Descricao: ${ai?.business?.description ?? "Nao informada"}.`,
       `Horario: ${ai?.business?.hours ?? "Nao informado"}.`,
+      `Topicos proibidos: ${ai?.forbidden_topics ?? "nao informado"}.`,
+      `Escalonamento humano: ${ai?.escalation_rules ?? "nao informado"}.`,
+      playbookLines ? `Playbook:\n${playbookLines}` : "",
       "Responda de forma curta e util."
     ].join("\n");
 
