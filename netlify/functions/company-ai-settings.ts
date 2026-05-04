@@ -9,7 +9,6 @@ const querySchema = z.object({
 
 const bodySchema = z.object({
   assistantName: z.string().min(2).max(80),
-  model: z.string().min(3).max(60),
   tone: z.string().min(2).max(60),
   welcomeEnabled: z.boolean(),
   welcomeMessage: z.string().min(2).max(400),
@@ -107,6 +106,7 @@ export const handler: Handler = async (event) => {
     }
 
     const payload = bodyParsed.data;
+    const fixedModel = process.env.OPENAI_DEFAULT_MODEL ?? "gpt-4.1-mini";
     const normalizedBusinessName = payload.businessName.trim();
     const normalizedBusinessDescription = payload.businessDescription.trim();
     const normalizedBusinessHours = payload.businessHours.trim();
@@ -114,7 +114,7 @@ export const handler: Handler = async (event) => {
     const settingsJson = {
       ai: {
         assistant_name: payload.assistantName,
-        model: payload.model,
+        model: fixedModel,
         tone: payload.tone,
         welcome_enabled: payload.welcomeEnabled,
         welcome_message: payload.welcomeMessage,

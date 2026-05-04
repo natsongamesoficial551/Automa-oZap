@@ -42,6 +42,8 @@ No Supabase, habilite Google provider e adicione Redirect URLs:
 - `GET/POST /.netlify/functions/company-ai-settings?company_id=UUID` para configurar IA por empresa
 - `POST /.netlify/functions/company-ai-preview` para testar resposta da IA com contexto da empresa
 
+Observacao: o modelo da OpenAI e controlado apenas por `OPENAI_DEFAULT_MODEL` no ambiente (nao editavel no painel).
+
 Observacao de tenant no webhook:
 - envie `company_id` no body ou header `x-company-id`
 

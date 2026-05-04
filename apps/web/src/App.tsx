@@ -30,7 +30,6 @@ export function App() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [assistantName, setAssistantName] = useState("Atendente IA");
-  const [modelName, setModelName] = useState("gpt-4.1-mini");
   const [tone, setTone] = useState("profissional e simpatico");
   const [welcomeEnabled, setWelcomeEnabled] = useState(true);
   const [welcomeMessage, setWelcomeMessage] = useState("Oi! Sou o assistente virtual da empresa. Como posso ajudar?");
@@ -281,7 +280,6 @@ export function App() {
       const business = ai?.business;
 
       setAssistantName(ai?.assistant_name ?? "Atendente IA");
-      setModelName(ai?.model ?? "gpt-4.1-mini");
       setTone(ai?.tone ?? "profissional e simpatico");
       setWelcomeEnabled(ai?.welcome_enabled ?? true);
       setWelcomeMessage(ai?.welcome_message ?? "Oi! Sou o assistente virtual da empresa. Como posso ajudar?");
@@ -398,7 +396,6 @@ export function App() {
       },
       body: JSON.stringify({
         assistantName,
-        model: modelName,
         tone,
         welcomeEnabled,
         welcomeMessage,
@@ -563,7 +560,6 @@ export function App() {
           {!settingsLoading ? (
             <div className="settings-grid">
               <input value={assistantName} onChange={(e) => setAssistantName(e.target.value)} placeholder="Nome do assistente" />
-              <input value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="Modelo (ex: gpt-4.1-mini)" />
               <input value={tone} onChange={(e) => setTone(e.target.value)} placeholder="Tom de voz" />
               <label className="toggle-row">
                 <input type="checkbox" checked={welcomeEnabled} onChange={(e) => setWelcomeEnabled(e.target.checked)} />
