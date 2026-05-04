@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@netlify/functions": "^3.1.8",
+    "@supabase/supabase-js": "^2.49.8",
     "pino": "^9.6.0",
     "zod": "^3.24.1"
   }

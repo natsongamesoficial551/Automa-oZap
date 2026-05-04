@@ -122,3 +122,26 @@ body {
   cursor: pointer;
   margin-top: 8px;
 }
+
+.company-select {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  background: #fff;
+  margin-bottom: 10px;
+}
+
+.onboarding-form {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+  max-width: 460px;
+}
+
+.onboarding-form input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}

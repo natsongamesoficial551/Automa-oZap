@@ -14,17 +14,12 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
-
-  const memberships: CompanyMembership[] = useMemo(
-    () => [
-      {
-        companyId: "todo-company-id",
-        companyName: "Empresa pendente de provisioning",
-        role: "owner"
-      }
-    ],
-    []
-  );
+  const [memberships, setMemberships] = useState<CompanyMembership[]>([]);
+  const [membershipsLoading, setMembershipsLoading] = useState(false);
+  const [activeCompanyId, setActiveCompanyId] = useState<string>("");
+  const [companyNameInput, setCompanyNameInput] = useState("");
+  const [companySlugInput, setCompanySlugInput] = useState("");
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -65,6 +60,103 @@ export function App() {
       }
     ],
     []
+  );
+
+  async function loadMemberships() {
+    if (!supabase || !session?.user.id) {
+      setMemberships([]);
+      return;
+    }
+
+    setMembershipsLoading(true);
+
+    const { data, error } = await supabase
+      .from("company_members")
+      .select("role, company:companies(id, name)")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      setAuthMessage(`Falha ao carregar memberships: ${error.message}`);
+      setMemberships([]);
+      setMembershipsLoading(false);
+      return;
+    }
+
+    const mapped = (data ?? [])
+      .map((item) => {
+        const company = (item as { company?: { id?: string; name?: string } }).company;
+        const role = (item as { role?: CompanyMembership["role"] }).role;
+
+        if (!company?.id || !company?.name || !role) {
+          return null;
+        }
+
+        return {
+          companyId: company.id,
+          companyName: company.name,
+          role
+        } satisfies CompanyMembership;
+      })
+      .filter((item): item is CompanyMembership => item !== null);
+
+    setMemberships(mapped);
+    setMembershipsLoading(false);
+  }
+
+  useEffect(() => {
+    loadMemberships();
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!activeCompanyId && memberships.length > 0) {
+      setActiveCompanyId(memberships[0].companyId);
+    }
+  }, [memberships, activeCompanyId]);
+
+  async function createFirstCompany() {
+    if (!supabase || !session?.access_token) {
+      setAuthMessage("Sessao invalida para onboarding.");
+      return;
+    }
+
+    if (companyNameInput.trim().length < 2 || companySlugInput.trim().length < 3) {
+      setAuthMessage("Informe nome e slug validos para criar a empresa.");
+      return;
+    }
+
+    setOnboardingLoading(true);
+    setAuthMessage(null);
+
+    const response = await fetch("/api/onboarding-company", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        name: companyNameInput.trim(),
+        slug: companySlugInput.trim().toLowerCase()
+      })
+    });
+
+    const payload = (await response.json()) as { error?: string; detail?: string };
+
+    if (!response.ok) {
+      setAuthMessage(`Falha no onboarding: ${payload.detail ?? payload.error ?? "erro desconhecido"}`);
+      setOnboardingLoading(false);
+      return;
+    }
+
+    setCompanyNameInput("");
+    setCompanySlugInput("");
+    await loadMemberships();
+    setOnboardingLoading(false);
+  }
+
+  const activeMembership = useMemo(
+    () => memberships.find((item) => item.companyId === activeCompanyId) ?? memberships[0],
+    [activeCompanyId, memberships]
   );
 
   async function loginWithGoogle() {
@@ -134,9 +226,45 @@ export function App() {
 
       <section className="card">
         <h2>Empresa ativa</h2>
-        <p className="status">{memberships[0].companyName}</p>
-        <p className="todo">Role: {memberships[0].role}</p>
-        <p className="todo">TODO[TENANT-SCHEMA-01]: persistir companies e memberships no Supabase.</p>
+        {membershipsLoading ? <p className="todo">Carregando memberships...</p> : null}
+        {!membershipsLoading && memberships.length > 0 && activeMembership ? (
+          <>
+            {memberships.length > 1 ? (
+              <select className="company-select" value={activeMembership.companyId} onChange={(e) => setActiveCompanyId(e.target.value)}>
+                {memberships.map((item) => (
+                  <option key={item.companyId} value={item.companyId}>
+                    {item.companyName}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <p className="status">{activeMembership.companyName}</p>
+            <p className="todo">Role: {activeMembership.role}</p>
+          </>
+        ) : null}
+        {!membershipsLoading && memberships.length === 0 ? (
+          <>
+            <p className="status">Nenhuma empresa vinculada</p>
+            <p className="todo">Vamos criar sua primeira empresa agora para concluir onboarding.</p>
+            <div className="onboarding-form">
+              <input
+                type="text"
+                placeholder="Nome da empresa"
+                value={companyNameInput}
+                onChange={(e) => setCompanyNameInput(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="slug-da-empresa"
+                value={companySlugInput}
+                onChange={(e) => setCompanySlugInput(e.target.value)}
+              />
+              <button className="google-btn" onClick={createFirstCompany} disabled={onboardingLoading}>
+                {onboardingLoading ? "Criando..." : "Criar empresa"}
+              </button>
+            </div>
+          </>
+        ) : null}
       </section>
 
       <section className="grid">

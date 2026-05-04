@@ -38,6 +38,7 @@ No Supabase, habilite Google provider e adicione Redirect URLs:
 - `GET /.netlify/functions/health`
 - `GET /.netlify/functions/whatsapp-webhook` para `hub.challenge`
 - `POST /.netlify/functions/whatsapp-webhook` para fluxo inbound mock
+- `POST /.netlify/functions/onboarding-company` para criar empresa inicial do usuario
 
 Observacao de tenant no webhook:
 - envie `company_id` no body ou header `x-company-id`

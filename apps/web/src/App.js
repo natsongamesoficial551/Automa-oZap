@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 function statusLabel(mode) {
@@ -10,13 +10,12 @@ export function App() {
     const [session, setSession] = useState(null);
     const [loading, setLoading] = useState(true);
     const [authMessage, setAuthMessage] = useState(null);
-    const memberships = useMemo(() => [
-        {
-            companyId: "todo-company-id",
-            companyName: "Empresa pendente de provisioning",
-            role: "owner"
-        }
-    ], []);
+    const [memberships, setMemberships] = useState([]);
+    const [membershipsLoading, setMembershipsLoading] = useState(false);
+    const [activeCompanyId, setActiveCompanyId] = useState("");
+    const [companyNameInput, setCompanyNameInput] = useState("");
+    const [companySlugInput, setCompanySlugInput] = useState("");
+    const [onboardingLoading, setOnboardingLoading] = useState(false);
     useEffect(() => {
         if (!supabase) {
             setLoading(false);
@@ -48,6 +47,82 @@ export function App() {
             todo: "TODO[DB-SETUP-01]: provisionar Postgres/Supabase e aplicar migrations."
         }
     ], []);
+    async function loadMemberships() {
+        if (!supabase || !session?.user.id) {
+            setMemberships([]);
+            return;
+        }
+        setMembershipsLoading(true);
+        const { data, error } = await supabase
+            .from("company_members")
+            .select("role, company:companies(id, name)")
+            .eq("user_id", session.user.id)
+            .order("created_at", { ascending: true });
+        if (error) {
+            setAuthMessage(`Falha ao carregar memberships: ${error.message}`);
+            setMemberships([]);
+            setMembershipsLoading(false);
+            return;
+        }
+        const mapped = (data ?? [])
+            .map((item) => {
+            const company = item.company;
+            const role = item.role;
+            if (!company?.id || !company?.name || !role) {
+                return null;
+            }
+            return {
+                companyId: company.id,
+                companyName: company.name,
+                role
+            };
+        })
+            .filter((item) => item !== null);
+        setMemberships(mapped);
+        setMembershipsLoading(false);
+    }
+    useEffect(() => {
+        loadMemberships();
+    }, [session?.user.id]);
+    useEffect(() => {
+        if (!activeCompanyId && memberships.length > 0) {
+            setActiveCompanyId(memberships[0].companyId);
+        }
+    }, [memberships, activeCompanyId]);
+    async function createFirstCompany() {
+        if (!supabase || !session?.access_token) {
+            setAuthMessage("Sessao invalida para onboarding.");
+            return;
+        }
+        if (companyNameInput.trim().length < 2 || companySlugInput.trim().length < 3) {
+            setAuthMessage("Informe nome e slug validos para criar a empresa.");
+            return;
+        }
+        setOnboardingLoading(true);
+        setAuthMessage(null);
+        const response = await fetch("/api/onboarding-company", {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                Authorization: `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+                name: companyNameInput.trim(),
+                slug: companySlugInput.trim().toLowerCase()
+            })
+        });
+        const payload = (await response.json());
+        if (!response.ok) {
+            setAuthMessage(`Falha no onboarding: ${payload.detail ?? payload.error ?? "erro desconhecido"}`);
+            setOnboardingLoading(false);
+            return;
+        }
+        setCompanyNameInput("");
+        setCompanySlugInput("");
+        await loadMemberships();
+        setOnboardingLoading(false);
+    }
+    const activeMembership = useMemo(() => memberships.find((item) => item.companyId === activeCompanyId) ?? memberships[0], [activeCompanyId, memberships]);
     async function loginWithGoogle() {
         setAuthMessage(null);
         if (!supabase) {
@@ -75,5 +150,5 @@ export function App() {
     if (!session) {
         return (_jsxs("main", { className: "layout", children: [_jsxs("section", { className: "hero", children: [_jsx("p", { className: "kicker", children: "AutomacaoZap" }), _jsx("h1", { children: "Acesso ao painel" }), _jsx("p", { className: "description", children: "Entre para gerenciar empresas, integracoes e atendimento com IA." })] }), _jsxs("section", { className: "card auth-card", children: [_jsx("h2", { children: "Entrar com Google" }), !isSupabaseConfigured && (_jsx("p", { className: "todo", children: "Modo fallback: configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env`." })), _jsx("p", { className: "todo", children: "A autenticacao por email/senha foi desativada. Use sua conta Google." }), _jsx("button", { className: "google-btn", onClick: loginWithGoogle, children: "Continuar com Google" }), authMessage ? _jsx("p", { className: "todo", children: authMessage }) : null] })] }));
     }
-    return (_jsxs("main", { className: "layout", children: [_jsxs("section", { className: "hero", children: [_jsx("p", { className: "kicker", children: "AutomacaoZap" }), _jsx("h1", { children: "SaaS de atendimento com IA no WhatsApp" }), _jsx("p", { className: "description", children: "Base inicial pronta para evoluir em blocos: multiempresa, integra\u00E7\u00F5es com fallback e deploy em Netlify." }), _jsxs("p", { className: "description", children: ["Sessao: ", _jsx("strong", { children: session.user.email })] }), _jsx("button", { className: "link-btn", onClick: logout, children: "Sair" })] }), _jsxs("section", { className: "card", children: [_jsx("h2", { children: "Empresa ativa" }), _jsx("p", { className: "status", children: memberships[0].companyName }), _jsxs("p", { className: "todo", children: ["Role: ", memberships[0].role] }), _jsx("p", { className: "todo", children: "TODO[TENANT-SCHEMA-01]: persistir companies e memberships no Supabase." })] }), _jsx("section", { className: "grid", children: cards.map((card) => (_jsxs("article", { className: "card", children: [_jsx("h2", { children: card.title }), _jsx("p", { className: "status", children: statusLabel(card.mode) }), _jsx("p", { className: "todo", children: card.todo })] }, card.title))) })] }));
+    return (_jsxs("main", { className: "layout", children: [_jsxs("section", { className: "hero", children: [_jsx("p", { className: "kicker", children: "AutomacaoZap" }), _jsx("h1", { children: "SaaS de atendimento com IA no WhatsApp" }), _jsx("p", { className: "description", children: "Base inicial pronta para evoluir em blocos: multiempresa, integra\u00E7\u00F5es com fallback e deploy em Netlify." }), _jsxs("p", { className: "description", children: ["Sessao: ", _jsx("strong", { children: session.user.email })] }), _jsx("button", { className: "link-btn", onClick: logout, children: "Sair" })] }), _jsxs("section", { className: "card", children: [_jsx("h2", { children: "Empresa ativa" }), membershipsLoading ? _jsx("p", { className: "todo", children: "Carregando memberships..." }) : null, !membershipsLoading && memberships.length > 0 && activeMembership ? (_jsxs(_Fragment, { children: [memberships.length > 1 ? (_jsx("select", { className: "company-select", value: activeMembership.companyId, onChange: (e) => setActiveCompanyId(e.target.value), children: memberships.map((item) => (_jsx("option", { value: item.companyId, children: item.companyName }, item.companyId))) })) : null, _jsx("p", { className: "status", children: activeMembership.companyName }), _jsxs("p", { className: "todo", children: ["Role: ", activeMembership.role] })] })) : null, !membershipsLoading && memberships.length === 0 ? (_jsxs(_Fragment, { children: [_jsx("p", { className: "status", children: "Nenhuma empresa vinculada" }), _jsx("p", { className: "todo", children: "Vamos criar sua primeira empresa agora para concluir onboarding." }), _jsxs("div", { className: "onboarding-form", children: [_jsx("input", { type: "text", placeholder: "Nome da empresa", value: companyNameInput, onChange: (e) => setCompanyNameInput(e.target.value) }), _jsx("input", { type: "text", placeholder: "slug-da-empresa", value: companySlugInput, onChange: (e) => setCompanySlugInput(e.target.value) }), _jsx("button", { className: "google-btn", onClick: createFirstCompany, disabled: onboardingLoading, children: onboardingLoading ? "Criando..." : "Criar empresa" })] })] })) : null] }), _jsx("section", { className: "grid", children: cards.map((card) => (_jsxs("article", { className: "card", children: [_jsx("h2", { children: card.title }), _jsx("p", { className: "status", children: statusLabel(card.mode) }), _jsx("p", { className: "todo", children: card.todo })] }, card.title))) })] }));
 }
