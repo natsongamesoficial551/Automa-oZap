@@ -12,10 +12,22 @@ const bodySchema = z.object({
   tone: z.string().min(2).max(60),
   welcomeEnabled: z.boolean(),
   welcomeMessage: z.string().min(2).max(400),
+  objective: z.string().max(200).optional().default(""),
+  forbiddenTopics: z.string().max(2000).optional().default(""),
+  escalationRules: z.string().max(2000).optional().default(""),
   businessName: z.string().max(120).optional().default(""),
   businessDescription: z.string().max(2000).optional().default(""),
   businessHours: z.string().max(200).optional().default(""),
-  faq: z.array(z.object({ question: z.string().min(2).max(200), answer: z.string().min(2).max(500) })).max(20)
+  faq: z.array(z.object({ question: z.string().min(2).max(200), answer: z.string().min(2).max(500) })).max(20),
+  playbook: z
+    .array(
+      z.object({
+        intent: z.string().min(2).max(100),
+        baseReply: z.string().min(2).max(500),
+        variations: z.array(z.string().min(2).max(300)).max(5)
+      })
+    )
+    .max(20)
 });
 
 function readEnv(name: string): string {
@@ -118,12 +130,16 @@ export const handler: Handler = async (event) => {
         tone: payload.tone,
         welcome_enabled: payload.welcomeEnabled,
         welcome_message: payload.welcomeMessage,
+        objective: payload.objective.trim() || "Nao informado",
+        forbidden_topics: payload.forbiddenTopics.trim() || "Nao informado",
+        escalation_rules: payload.escalationRules.trim() || "Nao informado",
         business: {
           name: normalizedBusinessName || "Nao informado",
           description: normalizedBusinessDescription || "Nao informado",
           hours: normalizedBusinessHours || "Nao informado",
           faq: payload.faq
-        }
+        },
+        playbook: payload.playbook
       }
     };
 
