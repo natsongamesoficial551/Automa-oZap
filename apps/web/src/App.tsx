@@ -429,6 +429,8 @@ export function App() {
       </aside>
 
       <main className="content">
+        <div className="ambient ambient-a" />
+        <div className="ambient ambient-b" />
         <header className="topbar">
           <div>
             <h2>Painel SaaS Interno</h2>
@@ -461,6 +463,23 @@ export function App() {
 
         {page === "dashboard" ? (
           <>
+            <section className="hero-strip page-enter reveal">
+              <article className="hero-block lift">
+                <p>Performance semanal</p>
+                <strong>+23.4%</strong>
+                <small>mais conversas concluídas automaticamente</small>
+              </article>
+              <article className="hero-block lift">
+                <p>Tempo médio de resposta</p>
+                <strong>1.7s</strong>
+                <small>com fallback ativo para alta disponibilidade</small>
+              </article>
+              <article className="hero-block lift">
+                <p>Custo por atendimento</p>
+                <strong>US$ 0.09</strong>
+                <small>otimizado por contexto e memória incremental</small>
+              </article>
+            </section>
             <section className="kpi-grid page-enter reveal">
               {statusCards.map((card) => (
                 <article className="kpi-card lift" key={card.title}>
