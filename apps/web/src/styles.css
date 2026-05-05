@@ -101,12 +101,19 @@ button, input, textarea, select { font: inherit; }
   padding: 9px 11px;
   cursor: pointer;
   margin-bottom: 6px;
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease, color 180ms ease;
 }
 
 .nav-btn.active {
   color: var(--text);
   border-color: var(--line);
   background: rgba(0, 0, 0, 0.45);
+}
+
+.nav-btn:hover {
+  transform: translateX(2px);
+  color: #ffffff;
+  border-color: #646b76;
 }
 
 .sidebar-footer {
@@ -160,6 +167,7 @@ textarea { resize: vertical; }
   border-radius: 8px;
   padding: 9px 12px;
   cursor: pointer;
+  transition: transform 180ms ease, box-shadow 220ms ease, filter 180ms ease;
 }
 
 .btn.primary {
@@ -174,12 +182,23 @@ textarea { resize: vertical; }
   color: var(--text);
 }
 
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+}
+
 .panel {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: linear-gradient(160deg, rgba(56, 60, 68, 0.72), rgba(40, 43, 50, 0.76));
   padding: 14px;
   margin-bottom: 12px;
+  transition: border-color 220ms ease, transform 220ms ease, box-shadow 220ms ease;
+}
+
+.panel:hover {
+  border-color: #68707b;
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.2);
 }
 
 .panel h3 { margin: 0 0 10px; }
@@ -202,6 +221,7 @@ textarea { resize: vertical; }
   border-radius: 11px;
   background: rgba(52, 56, 65, 0.78);
   padding: 12px;
+  transition: transform 220ms ease, border-color 220ms ease, background 220ms ease;
 }
 
 .kpi-card p { margin: 0; color: var(--muted); }
@@ -238,22 +258,34 @@ textarea { resize: vertical; }
   padding: 9px;
   margin-bottom: 8px;
   cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
 }
 
 .thread.active { border-color: var(--accent-2); }
 .thread p, .thread small { margin: 4px 0 0; color: var(--muted); }
+
+.thread:hover {
+  transform: translateY(-1px);
+  border-color: #79808b;
+}
 
 .bubble {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 9px;
   margin-bottom: 8px;
+  transition: transform 180ms ease, border-color 180ms ease;
 }
 
 .bubble.in { background: rgba(61, 66, 75, 0.55); }
 .bubble.out { background: rgba(0, 0, 0, 0.42); }
 .bubble p { margin: 0 0 6px; }
 .bubble small { color: var(--muted); }
+
+.bubble:hover {
+  transform: translateY(-1px);
+  border-color: #7a818c;
+}
 
 .inline-status { color: var(--muted); display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
@@ -287,6 +319,36 @@ textarea { resize: vertical; }
   color: #ffffff;
   border-radius: 8px;
   padding: 9px;
+}
+
+.lift:hover {
+  transform: translateY(-2px);
+}
+
+.page-enter {
+  animation: pageIn 360ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 420ms ease, transform 520ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 1080px) {

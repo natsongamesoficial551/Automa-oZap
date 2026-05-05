@@ -71,6 +71,25 @@ export function App() {
     return () => data.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const elements = Array.from(document.querySelectorAll(".reveal"));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            observer.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.16 },
+    );
+
+    for (const element of elements) observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [page, memberships.length, conversationItems.length, messageTimeline.length]);
+
   async function loadMemberships() {
     if (!supabase || !session?.user.id) {
       setMemberships([]);
@@ -429,7 +448,7 @@ export function App() {
         </header>
 
         {memberships.length === 0 ? (
-          <section className="panel">
+          <section className="panel page-enter reveal">
             <h3>Onboarding da primeira empresa</h3>
             <p className="muted">Crie sua empresa para liberar IA, integrações e inbox.</p>
             <div className="form-row">
@@ -442,16 +461,16 @@ export function App() {
 
         {page === "dashboard" ? (
           <>
-            <section className="kpi-grid">
+            <section className="kpi-grid page-enter reveal">
               {statusCards.map((card) => (
-                <article className="kpi-card" key={card.title}>
+                <article className="kpi-card lift" key={card.title}>
                   <p>{card.title}</p>
                   <strong>{card.value}</strong>
                   <small>{card.help}</small>
                 </article>
               ))}
             </section>
-            <section className="panel two-col">
+            <section className="panel two-col page-enter reveal">
               <div>
                 <h3>Alertas operacionais</h3>
                 <ul className="list">
@@ -473,13 +492,13 @@ export function App() {
         ) : null}
 
         {page === "inbox" ? (
-          <section className="panel inbox-layout">
+          <section className="panel inbox-layout page-enter reveal">
             <div className="inbox-list">
               <h3>Conversas</h3>
               {conversationsLoading ? <p className="muted">Carregando conversas...</p> : null}
               {!conversationsLoading && conversationItems.length === 0 ? <p className="muted">Ainda sem conversas.</p> : null}
               {conversationItems.map((item) => (
-                <button key={item.id} className={`thread ${activeConversationId === item.id ? "active" : ""}`} onClick={() => setActiveConversationId(item.id)}>
+                <button key={item.id} className={`thread lift ${activeConversationId === item.id ? "active" : ""}`} onClick={() => setActiveConversationId(item.id)}>
                   <strong>{item.phone}</strong>
                   <p>{item.lastText}</p>
                   <small>{item.lastMessageAt ? new Date(item.lastMessageAt).toLocaleString("pt-BR") : "Sem data"}</small>
@@ -492,7 +511,7 @@ export function App() {
               {!messagesLoading && messageTimeline.length === 0 ? <p className="muted">Selecione uma conversa para visualizar.</p> : null}
               {!messagesLoading
                 ? messageTimeline.map((msg) => (
-                    <article key={msg.id} className={`bubble ${msg.direction === "outbound" ? "out" : "in"}`}>
+                    <article key={msg.id} className={`bubble lift ${msg.direction === "outbound" ? "out" : "in"}`}>
                       <p>{msg.body}</p>
                       <small>{msg.status} - {new Date(msg.createdAt).toLocaleString("pt-BR")}</small>
                     </article>
@@ -503,7 +522,7 @@ export function App() {
         ) : null}
 
         {page === "ai" ? (
-          <section className="panel two-col">
+          <section className="panel two-col page-enter reveal">
             <div>
               <h3>Configuração da IA</h3>
               {settingsLoading ? <p className="muted">Carregando...</p> : null}
@@ -528,7 +547,7 @@ export function App() {
         ) : null}
 
         {page === "integrations" ? (
-          <section className="panel two-col">
+          <section className="panel two-col page-enter reveal">
             <div>
               <h3>OpenAI</h3>
               <p className="muted">API key por tenant, validacao e rotacao.</p>
@@ -545,7 +564,7 @@ export function App() {
         ) : null}
 
         {page === "knowledge" ? (
-          <section className="panel">
+          <section className="panel page-enter reveal">
             <h3>Base de conhecimento</h3>
             <p className="muted">Gestao de FAQ, documentos e contexto de respostas.</p>
             <div className="form-grid">
@@ -559,7 +578,7 @@ export function App() {
         ) : null}
 
         {page === "clients" ? (
-          <section className="panel">
+          <section className="panel page-enter reveal">
             <h3>Clientes</h3>
             <p className="muted">Segmentação, consentimento LGPD e resumo de memória.</p>
             <div className="table-head">
@@ -572,7 +591,7 @@ export function App() {
         ) : null}
 
         {page === "logs" ? (
-          <section className="panel">
+          <section className="panel page-enter reveal">
             <h3>Logs e auditoria</h3>
             <p className="muted">Eventos com correlation id, status e origem.</p>
             <div className="table-head">
@@ -585,7 +604,7 @@ export function App() {
         ) : null}
 
         {page === "settings" ? (
-          <section className="panel two-col">
+          <section className="panel two-col page-enter reveal">
             <div>
               <h3>Membros e permissões</h3>
               <ul className="list">
