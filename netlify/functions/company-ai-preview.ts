@@ -1,22 +1,12 @@
 import type { Handler } from "@netlify/functions";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { correlationId, json } from "./_lib/http";
+import { requireTenant, tenantErrorCode, tenantErrorStatus } from "./_lib/tenant";
 
 const bodySchema = z.object({
   companyId: z.string().uuid(),
   customerMessage: z.string().min(2).max(1000)
 });
-
-function normalizeSupabaseUrl(value: string): string {
-  return value.trim().replace(/\/$/, "").replace(/\/rest\/v1.*$/, "");
-}
-
-function env(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`ENV_MISSING: ${name}`);
-  return v;
-}
 
 function extractResponseText(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
@@ -79,47 +69,19 @@ export const handler: Handler = async (event) => {
     return json(405, { error: "METHOD_NOT_ALLOWED", cid });
   }
 
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
-    return json(401, { error: "UNAUTHORIZED", cid, detail: "missing bearer token" });
-  }
-
   const parsed = bodySchema.safeParse(JSON.parse(event.body ?? "{}"));
   if (!parsed.success) {
     return json(422, { error: "VALIDATION_ERROR", cid, issues: parsed.error.issues });
   }
 
   try {
-    const supabaseUrl = normalizeSupabaseUrl(env("SUPABASE_URL"));
-    const anon = env("SUPABASE_ANON_KEY");
-    const service = env("SUPABASE_SERVICE_ROLE_KEY");
     const model = process.env.OPENAI_DEFAULT_MODEL ?? "gpt-4.1-mini";
+    const tenant = await requireTenant(event, parsed.data.companyId);
 
-    const authClient = createClient(supabaseUrl, anon, { global: { headers: { Authorization: authHeader } } });
-    const {
-      data: { user }
-    } = await authClient.auth.getUser();
-
-    if (!user) {
-      return json(401, { error: "UNAUTHORIZED", cid, detail: "invalid token" });
-    }
-
-    const admin = createClient(supabaseUrl, service);
-    const { data: membership } = await admin
-      .from("company_members")
-      .select("id")
-      .eq("company_id", parsed.data.companyId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!membership) {
-      return json(403, { error: "FORBIDDEN", cid });
-    }
-
-    const { data: company } = await admin
+    const { data: company } = await tenant.admin
       .from("companies")
       .select("name, settings_json")
-      .eq("id", parsed.data.companyId)
+      .eq("id", tenant.companyId)
       .single();
 
     const ai = (company?.settings_json as {
@@ -195,6 +157,10 @@ export const handler: Handler = async (event) => {
 
     return json(200, { ok: true, cid, mode: "real", response: text });
   } catch (error) {
-    return json(500, { error: "INTERNAL_ERROR", cid, detail: error instanceof Error ? error.message : "unknown" });
+    return json(tenantErrorStatus(error), {
+      error: tenantErrorCode(error),
+      cid,
+      detail: error instanceof Error ? error.message : "unknown"
+    });
   }
 };

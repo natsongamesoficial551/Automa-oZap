@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { correlationId, json } from "./_lib/http";
+import { requireAuth, tenantErrorCode, tenantErrorStatus } from "./_lib/tenant";
 
 const bodySchema = z.object({
   name: z.string().min(2).max(120),
@@ -12,32 +12,11 @@ const bodySchema = z.object({
     .regex(/^[a-z0-9-]+$/, "slug must be lowercase alphanumeric with dashes")
 });
 
-function readEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`ENV_MISSING: ${name}`);
-  }
-  return value;
-}
-
-function normalizeSupabaseUrl(value: string): string {
-  const trimmed = value.trim().replace(/\/$/, "");
-  if (trimmed.includes("/rest/v1")) {
-    return trimmed.replace(/\/rest\/v1.*$/, "");
-  }
-  return trimmed;
-}
-
 export const handler: Handler = async (event) => {
   const cid = correlationId();
 
   if (event.httpMethod !== "POST") {
     return json(405, { error: "METHOD_NOT_ALLOWED", cid });
-  }
-
-  const authHeader = event.headers.authorization || event.headers.Authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
-    return json(401, { error: "UNAUTHORIZED", cid, detail: "missing bearer token" });
   }
 
   try {
@@ -46,35 +25,7 @@ export const handler: Handler = async (event) => {
       return json(422, { error: "VALIDATION_ERROR", cid, issues: parsed.error.issues });
     }
 
-    const supabaseUrl = normalizeSupabaseUrl(readEnv("SUPABASE_URL"));
-    if (!/^https:\/\/.+\.supabase\.co$/i.test(supabaseUrl)) {
-      return json(500, {
-        error: "ENV_INVALID",
-        cid,
-        detail: "SUPABASE_URL deve ser https://<project-ref>.supabase.co"
-      });
-    }
-    const anonKey = readEnv("SUPABASE_ANON_KEY");
-    const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
-
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: {
-        headers: {
-          Authorization: authHeader
-        }
-      }
-    });
-
-    const {
-      data: { user },
-      error: userError
-    } = await authClient.auth.getUser();
-
-    if (userError || !user) {
-      return json(401, { error: "UNAUTHORIZED", cid, detail: userError?.message ?? "invalid token" });
-    }
-
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const { admin: adminClient, user } = await requireAuth(event);
 
     const { data: existingMembership, error: membershipError } = await adminClient
       .from("company_members")
@@ -136,8 +87,8 @@ export const handler: Handler = async (event) => {
       }
     });
   } catch (error) {
-    return json(500, {
-      error: "INTERNAL_ERROR",
+    return json(tenantErrorStatus(error), {
+      error: tenantErrorCode(error),
       cid,
       detail: error instanceof Error ? error.message : "unknown"
     });

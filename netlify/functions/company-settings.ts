@@ -1,6 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { z } from "zod";
 import { correlationId, json } from "./_lib/http";
+import { requireRole, requireTenant, tenantErrorCode, tenantErrorStatus } from "./_lib/tenant";
 
 const bodySchema = z.object({
   companyId: z.string().uuid(),
@@ -9,11 +10,6 @@ const bodySchema = z.object({
   language: z.string().min(2).max(12).default("pt-BR"),
 });
 
-function hasRole(event: Parameters<Handler>[0], allowed: string[]) {
-  const role = event.headers["x-user-role"] ?? "viewer";
-  return allowed.includes(role);
-}
-
 export const handler: Handler = async (event) => {
   const cid = correlationId();
 
@@ -21,20 +17,56 @@ export const handler: Handler = async (event) => {
     return json(405, { error: "METHOD_NOT_ALLOWED", cid });
   }
 
-  if (!hasRole(event, ["owner", "admin"])) {
-    return json(403, { error: "FORBIDDEN_ROLE", cid });
-  }
-
   const parsed = bodySchema.safeParse(JSON.parse(event.body ?? "{}"));
   if (!parsed.success) {
     return json(422, { error: "VALIDATION_ERROR", cid, issues: parsed.error.issues });
   }
 
-  return json(200, {
-    ok: true,
-    cid,
-    companyId: parsed.data.companyId,
-    message: "Configuracao validada. Persistencia Supabase sera conectada no proximo bloco.",
-    todo: "TODO[TENANT-RBAC-01]: substituir header x-user-role por claims de JWT Supabase",
-  });
+  try {
+    const tenant = await requireTenant(event, parsed.data.companyId);
+    requireRole(tenant.role, ["owner", "admin"]);
+
+    const { data: currentCompany, error: loadError } = await tenant.admin
+      .from("companies")
+      .select("settings_json")
+      .eq("id", tenant.companyId)
+      .single();
+
+    if (loadError) {
+      return json(404, { error: "COMPANY_NOT_FOUND", cid, detail: loadError.message });
+    }
+
+    const currentSettings =
+      currentCompany?.settings_json && typeof currentCompany.settings_json === "object" ? currentCompany.settings_json : {};
+
+    const { error } = await tenant.admin
+      .from("companies")
+      .update({
+        name: parsed.data.name,
+        timezone: parsed.data.timezone,
+        settings_json: {
+          ...currentSettings,
+          language: parsed.data.language
+        },
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", tenant.companyId);
+
+    if (error) {
+      return json(400, { error: "SAVE_FAILED", cid, detail: error.message });
+    }
+
+    return json(200, {
+      ok: true,
+      cid,
+      companyId: tenant.companyId,
+      role: tenant.role
+    });
+  } catch (error) {
+    return json(tenantErrorStatus(error), {
+      error: tenantErrorCode(error),
+      cid,
+      detail: error instanceof Error ? error.message : "unknown"
+    });
+  }
 };
