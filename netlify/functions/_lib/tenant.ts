@@ -17,6 +17,11 @@ export interface AuthContext {
   admin: SupabaseClient;
 }
 
+export interface TenantScope {
+  companyId: string;
+  userId?: string;
+}
+
 function readEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`ENV_MISSING: ${name}`);
@@ -47,6 +52,16 @@ export function getCompanyId(event: HandlerEvent, fallback?: string): string {
   }
 
   return companyId;
+}
+
+export function getTenantScope(event: HandlerEvent): TenantScope {
+  const companyId = getCompanyId(event);
+  const userId = event.headers["x-user-id"] || event.headers["X-User-Id"];
+
+  return {
+    companyId,
+    userId: userId || undefined
+  };
 }
 
 export async function requireAuth(event: HandlerEvent): Promise<AuthContext> {

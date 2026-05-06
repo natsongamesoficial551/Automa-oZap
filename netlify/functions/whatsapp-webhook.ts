@@ -1,6 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { randomUUID } from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { MockOpenAIProvider, MockWhatsAppProvider } from "@automacaozap/core";
 import { logger } from "./_lib/logger";
@@ -69,7 +69,9 @@ function isMockEnabled(name: "USE_MOCK_OPENAI" | "USE_MOCK_WHATSAPP"): boolean {
   return String(process.env[name] ?? "true").toLowerCase() === "true";
 }
 
-async function findCompanyByPhoneNumberId(admin: ReturnType<typeof createClient>, phoneNumberId?: string): Promise<string | null> {
+type AdminClient = SupabaseClient<any>;
+
+async function findCompanyByPhoneNumberId(admin: AdminClient, phoneNumberId?: string): Promise<string | null> {
   if (!phoneNumberId) return null;
 
   const { data } = await admin
@@ -79,10 +81,10 @@ async function findCompanyByPhoneNumberId(admin: ReturnType<typeof createClient>
     .contains("metadata_json", { phone_number_id: phoneNumberId })
     .maybeSingle();
 
-  return data?.company_id ?? null;
+  return (data as { company_id?: string } | null)?.company_id ?? null;
 }
 
-async function getTenantSecret(admin: ReturnType<typeof createClient>, companyId: string, provider: "openai" | "whatsapp"): Promise<string | null> {
+async function getTenantSecret(admin: AdminClient, companyId: string, provider: "openai" | "whatsapp"): Promise<string | null> {
   const { data } = await admin
     .from("integrations")
     .select("encrypted_secret")
@@ -90,11 +92,12 @@ async function getTenantSecret(admin: ReturnType<typeof createClient>, companyId
     .eq("provider", provider)
     .maybeSingle();
 
-  if (!data?.encrypted_secret) return null;
+  const secretRow = data as { encrypted_secret?: string } | null;
+  if (!secretRow?.encrypted_secret) return null;
   if (!process.env.APP_ENCRYPTION_KEY) return null;
 
   try {
-    return decryptSecret(data.encrypted_secret, process.env.APP_ENCRYPTION_KEY);
+    return decryptSecret(secretRow.encrypted_secret, process.env.APP_ENCRYPTION_KEY);
   } catch {
     return null;
   }
@@ -105,7 +108,7 @@ async function generateReply(input: {
   correlationId: string;
   customerMessage: string;
   model: string;
-  admin: ReturnType<typeof createClient>;
+  admin: AdminClient;
 }): Promise<{ text: string; mode: "mock" | "real"; tokenIn: number | null; tokenOut: number | null }> {
   const { data: companyData } = await input.admin
     .from("companies")
@@ -113,7 +116,8 @@ async function generateReply(input: {
     .eq("id", input.companyId)
     .maybeSingle();
 
-  const aiSettings = (companyData?.settings_json as {
+  const companyRow = companyData as { settings_json?: unknown } | null;
+  const aiSettings = (companyRow?.settings_json as {
     ai?: {
       assistant_name?: string;
       tone?: string;
@@ -199,7 +203,7 @@ async function generateReply(input: {
 }
 
 async function sendWhatsAppReply(input: {
-  admin: ReturnType<typeof createClient>;
+  admin: AdminClient;
   companyId: string;
   correlationId: string;
   to: string;
@@ -221,8 +225,9 @@ async function sendWhatsAppReply(input: {
     .eq("provider", "whatsapp")
     .maybeSingle();
 
+  const integrationRow = integration as { metadata_json?: unknown } | null;
   const phoneNumberId =
-    (integration?.metadata_json as { phone_number_id?: string } | null)?.phone_number_id ?? process.env.WHATSAPP_PHONE_NUMBER_ID;
+    (integrationRow?.metadata_json as { phone_number_id?: string } | null)?.phone_number_id ?? process.env.WHATSAPP_PHONE_NUMBER_ID;
 
   if (!accessToken || !phoneNumberId) {
     const mock = new MockWhatsAppProvider();
